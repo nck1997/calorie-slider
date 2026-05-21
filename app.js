@@ -132,6 +132,7 @@ const els = {
 let renderFrame = null;
 let latestVisibleCombos = [];
 let latestAllCombos = [];
+let numberInputTimer = null;
 
 function number(value) {
   const parsed = Number(value);
@@ -202,6 +203,14 @@ const tacoBellFoods = (window.TACO_BELL_ITEMS || []).map((item) =>
 const allFoods = [...STAPLES.map((item) => normalizeFood(item, "Staples")), ...tacoBellFoods];
 const trackedFoods = allFoods.filter((item) => item.protein != null && item.fiber != null);
 const foodsById = new Map(allFoods.map((item) => [item.id, item]));
+
+const trackedByProteinEfficiency = [...trackedFoods].sort(
+  (a, b) => proteinEfficiency(b) - proteinEfficiency(a)
+);
+const trackedByFiberEfficiency = [...trackedFoods].sort(
+  (a, b) => fiberEfficiency(b) - fiberEfficiency(a)
+);
+const trackedByCalories = [...trackedFoods].sort((a, b) => a.calories - b.calories);
 
 function caloriesTolerance() {
   return Math.max(60, Math.round(state.calories * 0.12));
@@ -313,12 +322,14 @@ function shortlistFoods(foods) {
   const candidates = trackedFoodsOnly(foods).filter(
     (item) => item.source === "Staples" || item.calories >= 25
   );
+  const candidateSet = new Set(candidates.map((item) => item.id));
+  const inCandidates = (item) => candidateSet.has(item.id);
 
   const buckets = [
     [...candidates].sort((a, b) => itemMatchScore(a) - itemMatchScore(b)).slice(0, 28),
-    [...candidates].sort((a, b) => proteinEfficiency(b) - proteinEfficiency(a)).slice(0, 14),
-    [...candidates].sort((a, b) => fiberEfficiency(b) - fiberEfficiency(a)).slice(0, 14),
-    [...candidates].sort((a, b) => a.calories - b.calories).slice(0, 14),
+    trackedByProteinEfficiency.filter(inCandidates).slice(0, 14),
+    trackedByFiberEfficiency.filter(inCandidates).slice(0, 14),
+    trackedByCalories.filter(inCandidates).slice(0, 14),
   ];
 
   for (const bucket of buckets) {
@@ -484,17 +495,17 @@ function buildCombos(foods) {
     .map(materializeCombo);
 }
 
+function itemLibraryScore(item) {
+  const delta = Math.abs(item.calories - state.calories * 0.5);
+  return delta * 0.6 - item.protein * 2.2 - item.fiber * 1.8;
+}
+
 function singleItems(foods) {
   const maxCalories = state.calories + caloriesTolerance();
   return trackedFoodsOnly(foods)
     .filter((item) => item.calories <= maxCalories)
     .sort((a, b) => itemLibraryScore(a) - itemLibraryScore(b))
     .slice(0, 18);
-}
-
-function itemLibraryScore(item) {
-  const delta = Math.abs(item.calories - state.calories * 0.5);
-  return delta * 0.6 - item.protein * 2.2 - item.fiber * 1.8;
 }
 
 function syncSliderCards() {
@@ -607,6 +618,9 @@ function renderPinnedSection() {
   const hiddenBreakfastNote = state.includeBreakfast
     ? "Breakfast items are currently eligible."
     : "Breakfast items stay out of suggestions unless you turn them on.";
+  const canRoll = latestAllCombos.length > COMBOS_PER_VIEW;
+  const currentPage = canRoll ? Math.floor(state.rollOffset / COMBOS_PER_VIEW) + 1 : 1;
+  const totalPages = canRoll ? Math.ceil(latestAllCombos.length / COMBOS_PER_VIEW) : 1;
 
   els.selectionSummary.innerHTML = `
     <div class="selection-summary ${hasPins ? "" : "empty-state"}">
@@ -624,7 +638,7 @@ function renderPinnedSection() {
         <p class="selection-caption">${hiddenBreakfastNote}</p>
       </div>
       <div class="selection-actions">
-        <button class="action-button" type="button" data-selection-action="roll">Roll Again</button>
+        <button class="action-button" type="button" data-selection-action="roll" ${!canRoll ? 'disabled aria-disabled="true"' : ""}>Roll Again${canRoll ? ` (${currentPage}/${totalPages})` : ""}</button>
         <button class="ghost-button" type="button" data-selection-action="clear">Clear Pins</button>
       </div>
     </div>
@@ -749,11 +763,6 @@ function renderResults() {
   const hiddenCount = foods.length - trackableFoods.length;
 
   latestAllCombos = buildCombos(foods);
-
-  if (state.rollOffset >= latestAllCombos.length && latestAllCombos.length > 0) {
-    state.rollOffset = 0;
-  }
-
   latestVisibleCombos = latestAllCombos.slice(state.rollOffset, state.rollOffset + COMBOS_PER_VIEW);
   const items = singleItems(foods);
   const tolerance = caloriesTolerance();
@@ -774,8 +783,9 @@ function renderResults() {
 
 function renderDynamicSections() {
   renderHeroStats();
-  renderPinnedSection();
+  clampRollOffset();
   renderResults();
+  renderPinnedSection();
 }
 
 function scheduleDynamicRender() {
@@ -791,6 +801,12 @@ function scheduleDynamicRender() {
 
 function resetRoll() {
   state.rollOffset = 0;
+}
+
+function clampRollOffset() {
+  if (latestAllCombos.length > 0 && state.rollOffset >= latestAllCombos.length) {
+    state.rollOffset = 0;
+  }
 }
 
 function addPinnedItem(id, amount = 1) {
@@ -837,11 +853,7 @@ function useCombo(index) {
   }
 
   for (const entry of combo.entries) {
-    const current = state.pinnedCounts.get(entry.item.id) || 0;
-    state.pinnedCounts.set(
-      entry.item.id,
-      clamp(current + entry.quantity, 0, MAX_PINNED_QUANTITY)
-    );
+    state.pinnedCounts.set(entry.item.id, clamp(entry.quantity, 0, MAX_PINNED_QUANTITY));
   }
 
   resetRoll();
@@ -860,21 +872,30 @@ function renderStatic() {
   renderSliders();
   renderSourceChips();
   renderAvailabilityChips();
-  syncSliderCards();
   renderDynamicSections();
 }
 
 els.sliderGrid.addEventListener("input", (event) => {
   const sliderKey = event.target.dataset.sliderKey;
+  const numberKey = event.target.dataset.sliderNumber;
 
-  if (!sliderKey || event.target.value === "") {
+  if (sliderKey && event.target.value !== "") {
+    state[sliderKey] = coerceSliderValue(sliderKey, event.target.value);
+    syncSliderCards();
+    resetRoll();
+    scheduleDynamicRender();
     return;
   }
 
-  state[sliderKey] = coerceSliderValue(sliderKey, event.target.value);
-  syncSliderCards();
-  resetRoll();
-  scheduleDynamicRender();
+  if (numberKey && event.target.value !== "") {
+    clearTimeout(numberInputTimer);
+    numberInputTimer = setTimeout(() => {
+      state[numberKey] = coerceSliderValue(numberKey, event.target.value);
+      syncSliderCards();
+      resetRoll();
+      renderDynamicSections();
+    }, 300);
+  }
 });
 
 els.sliderGrid.addEventListener("change", (event) => {

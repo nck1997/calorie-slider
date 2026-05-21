@@ -540,6 +540,11 @@ button {
   color: #fff7ef;
 }
 
+.action-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .ghost-button,
 .icon-button {
   padding: 11px 14px;

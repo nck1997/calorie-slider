@@ -9,7 +9,7 @@ Files:
 - `scripts/build-taco-bell-data.js`: scraper that rebuilds the Taco Bell data files
 
 To refresh Taco Bell data:
-- Run `node canvas/calorie-slider/scripts/build-taco-bell-data.js`
+- Run `node scripts/build-taco-bell-data.js`
 
 Current notes:
 - The app mixes Taco Bell with three starter staples: Nurri Protein Shake, Mission Zero Tortilla, and Oikos Triple Zero Yogurt.
