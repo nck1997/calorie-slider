@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Calorie Slider Lab</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero-card">
+        <div class="hero-copy">
+          <p class="eyebrow">Macro Match Lab</p>
+          <h1>Slide your targets and see what actually fits.</h1>
+          <p class="hero-text">
+            Built around Taco Bell menu data plus your go-to staples so you can chase calories,
+            protein, and fiber without doing the math in your head.
+          </p>
+        </div>
+        <div class="hero-stats" id="heroStats"></div>
+      </section>
+
+      <section class="control-card">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Targets</p>
+            <h2>Dial in the day</h2>
+          </div>
+          <p class="section-note">
+            Slide fast, type exact values when you want, and keep breakfast off unless you explicitly want it in play.
+          </p>
+        </div>
+        <div class="slider-grid" id="sliderGrid"></div>
+        <div class="filter-row filter-row-wrap">
+          <div class="filter-cluster">
+            <div class="filter-label">Sources</div>
+            <div class="chip-group" id="sourceChips"></div>
+          </div>
+          <div class="filter-cluster">
+            <div class="filter-label">Availability</div>
+            <div class="chip-group" id="availabilityChips"></div>
+          </div>
+          <label class="search-box">
+            <span>Search items</span>
+            <input id="searchInput" type="search" placeholder="Bean burrito, chalupa, shake, yogurt..." />
+          </label>
+        </div>
+      </section>
+
+      <section class="results-section selection-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Pinned Picks</p>
+            <h2>Lock in what you want</h2>
+          </div>
+          <p class="section-note">
+            Pin an item, adjust the counts, and roll again to let the app fill the rest.
+          </p>
+        </div>
+        <div id="selectionSummary"></div>
+        <div class="selection-grid" id="pinnedGrid"></div>
+      </section>
+
+      <section class="results-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Best Combos</p>
+            <h2>What fits right now</h2>
+          </div>
+          <p class="section-note" id="comboSummary"></p>
+        </div>
+        <div class="combo-grid" id="comboGrid"></div>
+      </section>
+
+      <section class="results-section library-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Food Library</p>
+            <h2>Single items in range</h2>
+          </div>
+          <p class="section-note">
+            Pin from here when you already know one piece of the meal and want the rest to adapt.
+          </p>
+        </div>
+        <div class="library-grid" id="itemGrid"></div>
+      </section>
+
+      <footer class="footer-note">
+        Taco Bell nutrition data comes from official Taco Bell menu pages and linked Nutritionix labels.
+        Staple macros use the values you provided.
+      </footer>
+    </main>
+
+    <script src="./data/taco-bell-items.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
