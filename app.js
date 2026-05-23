@@ -126,8 +126,8 @@ const els = {
   sliderGrid: document.getElementById("sliderGrid"),
   sourceChips: document.getElementById("sourceChips"),
   availabilityChips: document.getElementById("availabilityChips"),
-  selectionSentinel: document.getElementById("selectionSentinel"),
   selectionSection: document.getElementById("selectionSection"),
+  compactPinnedBar: document.getElementById("compactPinnedBar"),
   selectionSummary: document.getElementById("selectionSummary"),
   pinnedGrid: document.getElementById("pinnedGrid"),
   comboGrid: document.getElementById("comboGrid"),
@@ -722,6 +722,21 @@ function renderAvailabilityChips() {
   `;
 }
 
+function compactPinnedMarkup(entries, totals, delta) {
+  return `
+    <div class="compact-pinned-inner">
+      <p class="compact-pinned-label">${entries.length > 0 ? "Pinned meal" : "Meal target"}</p>
+      <div class="compact-pinned-macros">
+        <span class="macro-pill">${totals.calories} cal</span>
+        <span class="macro-pill">${formatMacro(totals.protein, "g protein")}</span>
+        <span class="macro-pill">${formatMacro(totals.fiber, "g fiber")}</span>
+        <span class="delta-pill ${overUnderClass(delta)}">${overUnderLabel(delta)}</span>
+        <span class="macro-pill">${formatMealCost(entries)}</span>
+      </div>
+    </div>
+  `;
+}
+
 function renderPinnedSection() {
   const entries = pinnedEntries();
   const totals = totalsFromEntries(entries);
@@ -791,6 +806,8 @@ function renderPinnedSection() {
         )
         .join("")
     : `<div class="empty-state"><p>Nothing is pinned yet. Use the Pin buttons in the combo cards or food library to anchor the meal.</p></div>`;
+
+  els.compactPinnedBar.innerHTML = compactPinnedMarkup(entries, totals, delta);
 }
 
 function comboCard(combo, index) {
@@ -1023,13 +1040,13 @@ function rollAgain() {
   renderDynamicSections();
 }
 
-function updateStickySelectionMode() {
-  if (!els.selectionSection || !els.selectionSentinel) {
+function updateCompactPinnedBar() {
+  if (!els.compactPinnedBar || !els.selectionSection) {
     return;
   }
 
-  const sentinelTop = els.selectionSentinel.getBoundingClientRect().top;
-  els.selectionSection.classList.toggle("is-compact", window.scrollY > 0 && sentinelTop <= 12);
+  const sectionBottom = els.selectionSection.getBoundingClientRect().bottom;
+  els.compactPinnedBar.classList.toggle("is-visible", sectionBottom <= 16);
 }
 
 function scrollToItemResults() {
@@ -1047,7 +1064,7 @@ function renderStatic() {
   renderSourceChips();
   renderAvailabilityChips();
   renderDynamicSections();
-  updateStickySelectionMode();
+  updateCompactPinnedBar();
 }
 
 els.sliderGrid.addEventListener("input", (event) => {
@@ -1190,8 +1207,8 @@ els.dealGrid.addEventListener("click", (event) => {
   addPinnedItem(addItemId, number(event.target.dataset.addAmount || 1));
 });
 
-window.addEventListener("scroll", updateStickySelectionMode, { passive: true });
-window.addEventListener("resize", updateStickySelectionMode);
+window.addEventListener("scroll", updateCompactPinnedBar, { passive: true });
+window.addEventListener("resize", updateCompactPinnedBar);
 
 els.searchInput.addEventListener("input", (event) => {
   state.search = event.target.value;
