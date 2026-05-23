@@ -3,11 +3,12 @@ const STAPLES = [
     id: "staple-nurri",
     code: "staple-nurri",
     name: "Nurri Protein Shake",
-    source: "Staples",
+    source: "Household Staples",
     sourceType: "staple",
     sourceUrl: "",
     categoryCode: "protein-shakes",
-    categoryLabel: "Staples",
+    categoryLabel: "Household Staples",
+    cuisine: "Household",
     image: "",
     price: null,
     serving: "1 bottle",
@@ -25,11 +26,12 @@ const STAPLES = [
     id: "staple-mission-zero",
     code: "staple-mission-zero",
     name: "Mission Zero Tortilla",
-    source: "Staples",
+    source: "Household Staples",
     sourceType: "staple",
     sourceUrl: "",
     categoryCode: "tortillas",
-    categoryLabel: "Staples",
+    categoryLabel: "Household Staples",
+    cuisine: "Household",
     image: "",
     price: null,
     serving: "1 tortilla",
@@ -47,11 +49,12 @@ const STAPLES = [
     id: "staple-oikos-triple-zero",
     code: "staple-oikos-triple-zero",
     name: "Oikos Triple Zero Yogurt",
-    source: "Staples",
+    source: "Household Staples",
     sourceType: "staple",
     sourceUrl: "",
     categoryCode: "yogurt",
-    categoryLabel: "Staples",
+    categoryLabel: "Household Staples",
+    cuisine: "Household",
     image: "",
     price: null,
     serving: "1 cup",
@@ -103,7 +106,8 @@ const sourceMeta = [
   { key: "Panda Express", label: "Panda Express" },
   { key: "CAVA", label: "CAVA" },
   { key: "Wingstop", label: "Wingstop" },
-  { key: "Staples", label: "Staples" },
+  { key: "Household Staples", label: "Household Staples" },
+  { key: "Household Recipes", label: "Household Recipes" },
 ];
 
 const COMBOS_PER_VIEW = 6;
@@ -116,7 +120,7 @@ const state = {
   fiber: 10,
   search: "",
   includeBreakfast: false,
-  sources: new Set(["Taco Bell", "Chipotle", "Panda Express", "CAVA", "Wingstop", "Staples"]),
+  sources: new Set(["Taco Bell"]),
   pinnedCounts: new Map(),
   rollOffset: 0,
 };
@@ -133,8 +137,11 @@ const els = {
   comboGrid: document.getElementById("comboGrid"),
   comboSummary: document.getElementById("comboSummary"),
   itemGrid: document.getElementById("itemGrid"),
+  cuisineGrid: document.getElementById("cuisineGrid"),
   dealGrid: document.getElementById("dealGrid"),
   dealSummary: document.getElementById("dealSummary"),
+  recipeModal: document.getElementById("recipeModal"),
+  recipeModalContent: document.getElementById("recipeModalContent"),
   searchInput: document.getElementById("searchInput"),
   itemResults: document.getElementById("itemResults"),
 };
@@ -229,11 +236,84 @@ function isTacoBellDrinkOrDessert(item) {
   );
 }
 
+function cuisineForItem(item) {
+  const tags = item.tags || [];
+  const category = (item.categoryLabel || "").toLowerCase();
+  const source = item.source || "";
+
+  if (item.cuisine) {
+    return item.cuisine;
+  }
+  if (tags.includes("Mexican") || source === "Taco Bell" || source === "Chipotle") {
+    return "Mexican";
+  }
+  if (tags.includes("Italian")) {
+    return "Italian";
+  }
+  if (tags.includes("Indian")) {
+    return "Indian";
+  }
+  if (tags.includes("Chinese") || source === "Panda Express" || category.includes("chinese")) {
+    return "Chinese";
+  }
+  if (tags.includes("Japanese")) {
+    return "Japanese";
+  }
+  if (source === "CAVA") {
+    return "Mediterranean";
+  }
+  if (source === "Wingstop") {
+    return "American";
+  }
+  if (tags.includes("Breakfast")) {
+    return "Breakfast";
+  }
+  if (source.includes("Household")) {
+    return "Household";
+  }
+  return "Other";
+}
+
+function perServing(recipe, key) {
+  return Math.round(number(recipe[key]) / Math.max(number(recipe.servings), 1));
+}
+
+function recipeToFood(recipe) {
+  const calories = perServing(recipe, "kcal_total");
+  const protein = perServing(recipe, "protein_total");
+  return {
+    id: `recipe-${recipe.slug}`,
+    code: recipe.slug,
+    name: recipe.title,
+    source: "Household Recipes",
+    sourceType: "personal-recipe",
+    sourceUrl: "",
+    categoryCode: "personal-recipe",
+    categoryLabel: "Personal recipe",
+    cuisine: cuisineForItem(recipe),
+    image: "",
+    price: null,
+    serving: `${recipe.servings} serving${recipe.servings === 1 ? "" : "s"} total`,
+    calories,
+    protein,
+    fiber: 0,
+    carbs: null,
+    fat: null,
+    sodium: null,
+    isVegetarian: (recipe.tags || []).includes("Vegetarian"),
+    isCombo: true,
+    isDrink: false,
+    recipe,
+    tags: recipe.tags || [],
+  };
+}
+
 function normalizeFood(item, fallbackSource) {
   const normalized = {
     ...item,
     source: item.source || fallbackSource,
     categoryLabel: item.categoryLabel || fallbackSource,
+    cuisine: cuisineForItem(item),
     calories: number(item.calories),
     protein: maybeNumber(item.protein),
     fiber: maybeNumber(item.fiber),
@@ -253,10 +333,17 @@ const tacoBellFoods = (window.TACO_BELL_ITEMS || []).map((item) =>
 const fastCasualFoods = (window.FAST_CASUAL_ITEMS || []).map((item) =>
   normalizeFood(item, item.source || "Fast Casual")
 );
+const personalRecipeFoods = (window.PERSONAL_RECIPES || []).map((recipe) =>
+  normalizeFood(recipeToFood(recipe), "Household Recipes")
+);
 const menuFoods = [...tacoBellFoods, ...fastCasualFoods].filter(
   (item) => !isTacoBellDrinkOrDessert(item)
 );
-const allFoods = [...STAPLES.map((item) => normalizeFood(item, "Staples")), ...menuFoods];
+const allFoods = [
+  ...STAPLES.map((item) => normalizeFood(item, "Household Staples")),
+  ...personalRecipeFoods,
+  ...menuFoods,
+];
 const trackedFoods = allFoods.filter((item) => item.protein != null && item.fiber != null);
 const officialDeals = allFoods.filter((item) => item.isOfficialDeal);
 const foodsById = new Map(allFoods.map((item) => [item.id, item]));
@@ -289,6 +376,15 @@ function formatMacro(value, suffix) {
     return `—${suffix}`;
   }
   return `${Math.round(value * 10) / 10}${suffix}`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function sourceLine(items) {
@@ -358,6 +454,25 @@ function filteredFoods() {
 
 function trackedFoodsOnly(foods) {
   return foods.filter((item) => item.protein != null && item.fiber != null);
+}
+
+function cuisineGroups(foods) {
+  const groups = new Map();
+
+  for (const item of trackedFoodsOnly(foods)) {
+    const cuisine = cuisineForItem(item);
+    if (!groups.has(cuisine)) {
+      groups.set(cuisine, []);
+    }
+    groups.get(cuisine).push(item);
+  }
+
+  return [...groups.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([cuisine, items]) => ({
+      cuisine,
+      items: items.sort((a, b) => itemLibraryScore(a) - itemLibraryScore(b)).slice(0, 6),
+    }));
 }
 
 function remainingTargets() {
@@ -722,6 +837,33 @@ function renderAvailabilityChips() {
   `;
 }
 
+function toggleSource(sourceKey) {
+  if (!sourceKey) {
+    return;
+  }
+
+  if (state.sources.has(sourceKey)) {
+    state.sources.delete(sourceKey);
+  } else {
+    state.sources.add(sourceKey);
+  }
+
+  if (state.sources.size === 0) {
+    state.sources.add(sourceKey);
+  }
+
+  resetRoll();
+  renderSourceChips();
+  renderDynamicSections();
+}
+
+function toggleBreakfast() {
+  state.includeBreakfast = !state.includeBreakfast;
+  resetRoll();
+  renderAvailabilityChips();
+  renderDynamicSections();
+}
+
 function compactPinnedMarkup(entries, totals, delta) {
   return `
     <div class="compact-pinned-inner">
@@ -881,11 +1023,44 @@ function itemCard(item) {
       <div class="card-footer">
         <span class="mini-chip">${formatMacro(item.protein, "g protein")}</span>
         <span class="mini-chip">${formatMacro(item.fiber, "g fiber")}</span>
+        <span class="mini-chip">${item.cuisine || cuisineForItem(item)}</span>
         ${item.price != null ? `<span class="mini-chip">$${item.price.toFixed(2)}</span>` : ""}
       </div>
       <div class="selection-actions">
         <button class="pin-button" type="button" data-add-item-id="${item.id}" data-add-amount="1">Pin Item</button>
+        ${item.recipe ? `<button class="ghost-button" type="button" data-open-recipe-id="${item.id}">View Recipe</button>` : ""}
       </div>
+    </article>
+  `;
+}
+
+function cuisineCard(group) {
+  return `
+    <article class="cuisine-card">
+      <div class="cuisine-card-top">
+        <div>
+          <p class="eyebrow">${group.items.length} ideas</p>
+          <h3 class="cuisine-title">${escapeHtml(group.cuisine)}</h3>
+        </div>
+      </div>
+      <ul class="cuisine-list">
+        ${group.items
+          .map(
+            (item) => `
+              <li>
+                <div>
+                  <strong>${escapeHtml(item.name)}</strong>
+                  <span>${escapeHtml(item.source)}</span>
+                </div>
+                <div class="item-meta">
+                  <span>${item.calories} cal</span>
+                  <span>${formatMacro(item.protein, "g p")}</span>
+                </div>
+              </li>
+            `
+          )
+          .join("")}
+      </ul>
     </article>
   `;
 }
@@ -921,6 +1096,73 @@ function dealCard(item, index) {
   `;
 }
 
+function recipeDetailMarkup(item) {
+  const recipe = item.recipe;
+  const related = (recipe.related || [])
+    .map((slug) => foodsById.get(`recipe-${slug}`))
+    .filter(Boolean);
+
+  return `
+    <div class="recipe-kicker">
+      ${(recipe.tags || []).map((tag) => `<span class="tag-pill">${escapeHtml(tag)}</span>`).join("")}
+    </div>
+    <h2 id="recipeModalTitle">${escapeHtml(recipe.title)}</h2>
+    <p class="recipe-summary">${escapeHtml(recipe.summary || "")}</p>
+    <div class="recipe-stat-grid">
+      <div class="recipe-stat"><span>Serving</span><strong>${item.calories} cal</strong></div>
+      <div class="recipe-stat"><span>Protein</span><strong>${formatMacro(item.protein, "g")}</strong></div>
+      <div class="recipe-stat"><span>Fiber</span><strong>${formatMacro(item.fiber, "g")}</strong></div>
+      <div class="recipe-stat"><span>Total batch</span><strong>${recipe.kcal_total} cal / ${recipe.protein_total}g p</strong></div>
+    </div>
+    <div class="recipe-panel-actions">
+      <button class="pin-button" type="button" data-add-item-id="${item.id}" data-add-amount="1">Pin serving</button>
+    </div>
+    <section class="recipe-detail-section">
+      <h3>Ingredients</h3>
+      <ul>${(recipe.ingredients || []).map((ingredient) => `<li>${escapeHtml(ingredient)}</li>`).join("")}</ul>
+    </section>
+    <section class="recipe-detail-section">
+      <h3>Steps</h3>
+      <ol>${(recipe.steps || []).map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>
+    </section>
+    ${
+      recipe.notes
+        ? `<section class="recipe-detail-section"><h3>Notes</h3><p>${escapeHtml(recipe.notes)}</p></section>`
+        : ""
+    }
+    ${
+      related.length
+        ? `<section class="recipe-detail-section"><h3>Related recipes</h3><div class="recipe-related">${related
+            .map(
+              (relatedItem) =>
+                `<button class="ghost-button small" type="button" data-open-recipe-id="${relatedItem.id}">${escapeHtml(relatedItem.name)}</button>`
+            )
+            .join("")}</div></section>`
+        : ""
+    }
+  `;
+}
+
+function openRecipeDetail(id) {
+  const item = foodsById.get(id);
+  if (!item || !item.recipe || !els.recipeModal || !els.recipeModalContent) {
+    return;
+  }
+
+  els.recipeModalContent.innerHTML = recipeDetailMarkup(item);
+  els.recipeModal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+}
+
+function closeRecipeDetail() {
+  if (!els.recipeModal) {
+    return;
+  }
+
+  els.recipeModal.classList.add("hidden");
+  document.body.classList.remove("modal-open");
+}
+
 function renderResults() {
   const foods = filteredFoods();
   const trackableFoods = trackedFoodsOnly(foods);
@@ -929,6 +1171,7 @@ function renderResults() {
   latestAllCombos = buildCombos(foods);
   latestVisibleCombos = latestAllCombos.slice(state.rollOffset, state.rollOffset + COMBOS_PER_VIEW);
   const items = singleItems(foods);
+  const cuisines = cuisineGroups(foods);
   const deals = filteredOfficialDeals(foods);
   const trackedDeals = deals.filter(
     (item) => item.protein != null && item.fiber != null && item.calories > 0
@@ -947,6 +1190,10 @@ function renderResults() {
   els.itemGrid.innerHTML = items.length
     ? items.map(itemCard).join("")
     : `<div class="empty-state"><p>No fully tracked single items fit that search and source mix.</p></div>`;
+
+  els.cuisineGrid.innerHTML = cuisines.length
+    ? cuisines.map(cuisineCard).join("")
+    : `<div class="empty-state"><p>No cuisine sections yet. Turn on another source or clear your search.</p></div>`;
 
   els.dealSummary.textContent = `Showing official Taco Bell deal prices from the menu feed. ${trackedDeals} of ${deals.length} visible deals include enough macro data to pin directly.`;
   els.dealGrid.innerHTML = deals.length
@@ -1103,35 +1350,18 @@ els.sliderGrid.addEventListener("change", (event) => {
 });
 
 els.sourceChips.addEventListener("click", (event) => {
-  const sourceKey = event.target.dataset.sourceKey;
-  if (!sourceKey) {
+  const sourceButton = event.target.closest("[data-source-key]");
+  if (!sourceButton) {
     return;
   }
-
-  if (state.sources.has(sourceKey)) {
-    state.sources.delete(sourceKey);
-  } else {
-    state.sources.add(sourceKey);
-  }
-
-  if (state.sources.size === 0) {
-    state.sources.add(sourceKey);
-  }
-
-  resetRoll();
-  renderSourceChips();
-  renderDynamicSections();
+  toggleSource(sourceButton.dataset.sourceKey);
 });
 
 els.availabilityChips.addEventListener("click", (event) => {
-  if (!event.target.dataset.toggleBreakfast) {
+  if (!event.target.closest("[data-toggle-breakfast]")) {
     return;
   }
-
-  state.includeBreakfast = !state.includeBreakfast;
-  resetRoll();
-  renderAvailabilityChips();
-  renderDynamicSections();
+  toggleBreakfast();
 });
 
 els.selectionSummary.addEventListener("click", (event) => {
@@ -1192,11 +1422,42 @@ els.comboGrid.addEventListener("click", (event) => {
 });
 
 els.itemGrid.addEventListener("click", (event) => {
+  const recipeId = event.target.dataset.openRecipeId;
   const addItemId = event.target.dataset.addItemId;
+  if (recipeId) {
+    openRecipeDetail(recipeId);
+    return;
+  }
   if (!addItemId) {
     return;
   }
   addPinnedItem(addItemId, number(event.target.dataset.addAmount || 1));
+});
+
+els.recipeModal.addEventListener("click", (event) => {
+  const closeRecipe = event.target.dataset.closeRecipe;
+  const recipeId = event.target.dataset.openRecipeId;
+  const addItemId = event.target.dataset.addItemId;
+
+  if (closeRecipe) {
+    closeRecipeDetail();
+    return;
+  }
+
+  if (recipeId) {
+    openRecipeDetail(recipeId);
+    return;
+  }
+
+  if (addItemId) {
+    addPinnedItem(addItemId, number(event.target.dataset.addAmount || 1));
+  }
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeRecipeDetail();
+  }
 });
 
 els.dealGrid.addEventListener("click", (event) => {

@@ -76,6 +76,19 @@
         <div class="library-grid" id="itemGrid"></div>
       </section>
 
+      <section class="results-section" id="cuisineResults">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Cuisine Sections</p>
+            <h2>Browse by food lane</h2>
+          </div>
+          <p class="section-note">
+            The same active sources grouped into useful buckets like Mexican, Italian, Indian, American, and more.
+          </p>
+        </div>
+        <div class="cuisine-grid" id="cuisineGrid"></div>
+      </section>
+
       <section class="results-section" id="comboResults">
         <div class="section-heading">
           <div>
@@ -105,8 +118,17 @@
       </footer>
     </main>
 
+    <div class="recipe-modal hidden" id="recipeModal" role="dialog" aria-modal="true" aria-labelledby="recipeModalTitle">
+      <div class="recipe-modal-backdrop" data-close-recipe="true"></div>
+      <article class="recipe-panel">
+        <button class="icon-button recipe-close" type="button" data-close-recipe="true">Close</button>
+        <div id="recipeModalContent"></div>
+      </article>
+    </div>
+
     <script src="./data/taco-bell-items.js"></script>
     <script src="./data/fast-casual-items.js"></script>
+    <script src="./data/personal-recipes.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>
