@@ -99,6 +99,10 @@ const sliderConfig = [
 
 const sourceMeta = [
   { key: "Taco Bell", label: "Taco Bell" },
+  { key: "Chipotle", label: "Chipotle" },
+  { key: "Panda Express", label: "Panda Express" },
+  { key: "CAVA", label: "CAVA" },
+  { key: "Wingstop", label: "Wingstop" },
   { key: "Staples", label: "Staples" },
 ];
 
@@ -112,7 +116,7 @@ const state = {
   fiber: 10,
   search: "",
   includeBreakfast: false,
-  sources: new Set(["Taco Bell", "Staples"]),
+  sources: new Set(["Taco Bell", "Chipotle", "Panda Express", "CAVA", "Wingstop", "Staples"]),
   pinnedCounts: new Map(),
   rollOffset: 0,
 };
@@ -204,6 +208,27 @@ function isOfficialDealItem(item) {
   );
 }
 
+function isTacoBellDrinkOrDessert(item) {
+  if (item.source !== "Taco Bell") {
+    return false;
+  }
+
+  const name = (item.name || "").toLowerCase();
+  const categoryCode = (item.categoryCode || "").toLowerCase();
+  const categoryLabel = (item.categoryLabel || "").toLowerCase();
+  const sourceUrl = (item.sourceUrl || "").toLowerCase();
+
+  return (
+    categoryCode === "drinks" ||
+    categoryCode === "sweets" ||
+    categoryLabel === "drinks" ||
+    categoryLabel === "sweets" ||
+    sourceUrl.includes("/food/drinks/") ||
+    sourceUrl.includes("/food/sweets/") ||
+    /\b(cinnabon|cinnamon twists|empanada|lemonade|starry|pepsi|freeze|coffee|juice)\b/.test(name)
+  );
+}
+
 function normalizeFood(item, fallbackSource) {
   const normalized = {
     ...item,
@@ -225,7 +250,13 @@ function normalizeFood(item, fallbackSource) {
 const tacoBellFoods = (window.TACO_BELL_ITEMS || []).map((item) =>
   normalizeFood(item, "Taco Bell")
 );
-const allFoods = [...STAPLES.map((item) => normalizeFood(item, "Staples")), ...tacoBellFoods];
+const fastCasualFoods = (window.FAST_CASUAL_ITEMS || []).map((item) =>
+  normalizeFood(item, item.source || "Fast Casual")
+);
+const menuFoods = [...tacoBellFoods, ...fastCasualFoods].filter(
+  (item) => !isTacoBellDrinkOrDessert(item)
+);
+const allFoods = [...STAPLES.map((item) => normalizeFood(item, "Staples")), ...menuFoods];
 const trackedFoods = allFoods.filter((item) => item.protein != null && item.fiber != null);
 const officialDeals = allFoods.filter((item) => item.isOfficialDeal);
 const foodsById = new Map(allFoods.map((item) => [item.id, item]));
@@ -544,7 +575,7 @@ function buildCombos(foods) {
   return uniqueStates(allStates)
     .filter((comboState) => comboState.itemCount > baseState.itemCount)
     .sort((a, b) => a.score - b.score)
-    .slice(0, 24)
+    .slice(0, 96)
     .map(materializeCombo);
 }
 
@@ -700,8 +731,6 @@ function renderPinnedSection() {
     ? "Breakfast items are currently eligible."
     : "Breakfast items stay out of suggestions unless you turn them on.";
   const canRoll = latestAllCombos.length > COMBOS_PER_VIEW;
-  const currentPage = canRoll ? Math.floor(state.rollOffset / COMBOS_PER_VIEW) + 1 : 1;
-  const totalPages = canRoll ? Math.ceil(latestAllCombos.length / COMBOS_PER_VIEW) : 1;
 
   els.selectionSummary.innerHTML = `
     <div class="selection-summary ${hasPins ? "" : "empty-state"}">
@@ -720,7 +749,7 @@ function renderPinnedSection() {
         <p class="selection-caption">${hiddenBreakfastNote}</p>
       </div>
       <div class="selection-actions">
-        <button class="action-button" type="button" data-selection-action="roll" ${!canRoll ? 'disabled aria-disabled="true"' : ""}>Roll Again${canRoll ? ` (${currentPage}/${totalPages})` : ""}</button>
+        <button class="action-button" type="button" data-selection-action="roll" ${!canRoll ? 'disabled aria-disabled="true"' : ""}>Roll Again</button>
         <button class="ghost-button" type="button" data-selection-action="clear">Clear Pins</button>
       </div>
     </div>
