@@ -413,6 +413,20 @@ button {
   gap: 18px;
 }
 
+.selection-section {
+  position: sticky;
+  top: 12px;
+  z-index: 20;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.library-section,
+#comboResults {
+  scroll-margin-top: 220px;
+}
+
 .selection-grid {
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   margin-top: 18px;
@@ -420,6 +434,12 @@ button {
 
 .combo-grid {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.addition-note {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 
 .library-grid {
@@ -639,6 +659,11 @@ button {
   .results-section {
     padding: 20px;
     border-radius: 22px;
+  }
+
+  .selection-section {
+    top: 0;
+    max-height: 72vh;
   }
 
   .hero-copy h1 {

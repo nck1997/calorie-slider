@@ -127,6 +127,7 @@ const els = {
   comboSummary: document.getElementById("comboSummary"),
   itemGrid: document.getElementById("itemGrid"),
   searchInput: document.getElementById("searchInput"),
+  itemResults: document.getElementById("itemResults"),
 };
 
 let renderFrame = null;
@@ -421,9 +422,17 @@ function materializeCombo(comboState) {
         right.item.protein - left.item.protein || left.item.name.localeCompare(right.item.name)
     );
 
+  const additions = entries
+    .map((entry) => ({
+      item: entry.item,
+      quantity: Math.max(0, entry.quantity - (state.pinnedCounts.get(entry.item.id) || 0)),
+    }))
+    .filter((entry) => entry.quantity > 0);
+
   return {
     signature: stateSignature(comboState),
     entries,
+    additions,
     calories: comboState.calories,
     protein: comboState.protein,
     fiber: comboState.fiber,
@@ -440,7 +449,7 @@ function buildCombos(foods) {
   const maxCalories = state.calories + Math.max(220, caloriesTolerance() + 120);
   const beamWidth = 120;
   const maxAdditionalItems = Math.max(0, 6 - baseState.itemCount);
-  const allStates = baseState.itemCount > 0 ? [baseState] : [];
+  const allStates = [];
 
   let beam = [baseState];
 
@@ -489,19 +498,30 @@ function buildCombos(foods) {
   }
 
   return uniqueStates(allStates)
-    .filter((comboState) => comboState.itemCount > 0)
+    .filter((comboState) => comboState.itemCount > baseState.itemCount)
     .sort((a, b) => a.score - b.score)
     .slice(0, 24)
     .map(materializeCombo);
 }
 
 function itemLibraryScore(item) {
-  const delta = Math.abs(item.calories - state.calories * 0.5);
-  return delta * 0.6 - item.protein * 2.2 - item.fiber * 1.8;
+  const remaining = remainingTargets();
+  const targetCalories = Math.max(50, remaining.calories * 0.65 || state.calories * 0.25);
+  const delta = Math.abs(item.calories - targetCalories);
+
+  return (
+    delta * 0.55 +
+    Math.max(0, remaining.protein - item.protein) * 4.5 +
+    Math.max(0, remaining.fiber - item.fiber) * 4 -
+    item.protein * 1.3 -
+    item.fiber * 1.2
+  );
 }
 
 function singleItems(foods) {
-  const maxCalories = state.calories + caloriesTolerance();
+  const remaining = remainingTargets();
+  const maxCalories = Math.max(80, remaining.calories + caloriesTolerance());
+
   return trackedFoodsOnly(foods)
     .filter((item) => item.calories <= maxCalories)
     .sort((a, b) => itemLibraryScore(a) - itemLibraryScore(b))
@@ -683,11 +703,15 @@ function renderPinnedSection() {
 }
 
 function comboCard(combo, index) {
+  const entriesToShow = combo.additions.length > 0 ? combo.additions : combo.entries;
+  const listLabel = combo.additions.length > 0 ? "Suggested additions" : "Suggested meal";
+
   return `
     <article class="combo-card ${index === 0 ? "best" : ""}">
       <div class="combo-topline">
         <div>
           <span class="rank-badge">#${state.rollOffset + index + 1}</span>
+          <p class="addition-note">${listLabel}</p>
         </div>
         <div class="selection-actions">
           <span class="delta-pill ${overUnderClass(combo.deltaCalories)}">${overUnderLabel(combo.deltaCalories)}</span>
@@ -695,7 +719,7 @@ function comboCard(combo, index) {
         </div>
       </div>
       <ul class="combo-list">
-        ${combo.entries
+        ${entriesToShow
           .map(
             (entry) => `
               <li>
@@ -721,7 +745,7 @@ function comboCard(combo, index) {
           .join("")}
       </ul>
       <div class="card-footer">
-        <span class="macro-pill">${combo.calories} cal</span>
+        <span class="macro-pill">Meal total: ${combo.calories} cal</span>
         <span class="macro-pill">${formatMacro(combo.protein, "g protein")}</span>
         <span class="macro-pill">${formatMacro(combo.fiber, "g fiber")}</span>
       </div>
@@ -783,7 +807,6 @@ function renderResults() {
 
 function renderDynamicSections() {
   renderHeroStats();
-  clampRollOffset();
   renderResults();
   renderPinnedSection();
 }
@@ -865,7 +888,17 @@ function rollAgain() {
     return;
   }
   state.rollOffset = (state.rollOffset + COMBOS_PER_VIEW) % latestAllCombos.length;
-  renderResults();
+  renderDynamicSections();
+}
+
+function scrollToItemResults() {
+  if (!els.itemResults) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    els.itemResults.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 function renderStatic() {
@@ -1010,7 +1043,19 @@ els.itemGrid.addEventListener("click", (event) => {
 els.searchInput.addEventListener("input", (event) => {
   state.search = event.target.value;
   resetRoll();
-  renderResults();
+  renderDynamicSections();
+});
+
+els.searchInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") {
+    return;
+  }
+
+  event.preventDefault();
+  state.search = event.target.value;
+  resetRoll();
+  renderDynamicSections();
+  scrollToItemResults();
 });
 
 renderStatic();
