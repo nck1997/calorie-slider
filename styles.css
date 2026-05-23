@@ -391,6 +391,11 @@ button {
   gap: 10px;
 }
 
+.selection-sentinel {
+  height: 1px;
+  margin-top: 22px;
+}
+
 .selection-macro-row,
 .card-footer,
 .item-meta,
@@ -408,7 +413,8 @@ button {
 
 .selection-grid,
 .combo-grid,
-.library-grid {
+.library-grid,
+.deal-grid {
   display: grid;
   gap: 18px;
 }
@@ -420,10 +426,49 @@ button {
   max-height: calc(100vh - 24px);
   overflow: auto;
   overscroll-behavior: contain;
+  margin-top: 0;
+  transition: padding 180ms ease, border-radius 180ms ease, box-shadow 180ms ease;
+}
+
+.selection-section.is-compact {
+  padding: 12px 14px;
+  border-radius: 20px;
+  box-shadow: 0 16px 44px rgba(72, 46, 20, 0.18);
+}
+
+.selection-section.is-compact > .section-heading,
+.selection-section.is-compact .selection-caption,
+.selection-section.is-compact .selection-actions,
+.selection-section.is-compact .selection-grid {
+  display: none;
+}
+
+.selection-section.is-compact .selection-summary {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.selection-section.is-compact .selection-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.selection-section.is-compact .selection-summary-main {
+  display: block;
+}
+
+.selection-section.is-compact .selection-macro-row {
+  align-items: center;
 }
 
 .library-section,
-#comboResults {
+#comboResults,
+#dealResults {
   scroll-margin-top: 220px;
 }
 
@@ -432,7 +477,8 @@ button {
   margin-top: 18px;
 }
 
-.combo-grid {
+.combo-grid,
+.deal-grid {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
 
@@ -448,14 +494,16 @@ button {
 
 .selection-card,
 .combo-card,
-.item-card {
+.item-card,
+.deal-card {
   padding: 20px;
   border-radius: 24px;
   border: 1px solid rgba(78, 59, 36, 0.1);
   background: rgba(255, 255, 255, 0.67);
 }
 
-.combo-card.best {
+.combo-card.best,
+.deal-card.featured {
   background:
     linear-gradient(160deg, rgba(255, 245, 224, 0.88), rgba(255, 255, 255, 0.76)),
     var(--paper-strong);
@@ -472,7 +520,8 @@ button {
 }
 
 .combo-title,
-.item-title {
+.item-title,
+.deal-title {
   margin: 0;
   font-size: 1.15rem;
 }
@@ -587,6 +636,13 @@ button {
   color: var(--muted);
 }
 
+.deal-note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
 .selection-card {
   display: grid;
   gap: 14px;
@@ -664,6 +720,15 @@ button {
   .selection-section {
     top: 0;
     max-height: 72vh;
+  }
+
+  .selection-section.is-compact {
+    max-height: none;
+  }
+
+  .selection-section.is-compact .selection-summary {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .hero-copy h1 {

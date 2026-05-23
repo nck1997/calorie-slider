@@ -47,7 +47,8 @@
         </div>
       </section>
 
-      <section class="results-section selection-section">
+      <div class="selection-sentinel" id="selectionSentinel" aria-hidden="true"></div>
+      <section class="results-section selection-section" id="selectionSection">
         <div class="section-heading">
           <div>
             <p class="eyebrow">Pinned Picks</p>
@@ -83,6 +84,17 @@
           <p class="section-note" id="comboSummary"></p>
         </div>
         <div class="combo-grid" id="comboGrid"></div>
+      </section>
+
+      <section class="results-section" id="dealResults">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Official Deals</p>
+            <h2>Taco Bell boxes & combos</h2>
+          </div>
+          <p class="section-note" id="dealSummary"></p>
+        </div>
+        <div class="deal-grid" id="dealGrid"></div>
       </section>
 
       <footer class="footer-note">

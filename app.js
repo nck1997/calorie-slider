@@ -103,6 +103,7 @@ const sourceMeta = [
 ];
 
 const COMBOS_PER_VIEW = 6;
+const DEALS_PER_VIEW = 60;
 const MAX_PINNED_QUANTITY = 9;
 
 const state = {
@@ -121,11 +122,15 @@ const els = {
   sliderGrid: document.getElementById("sliderGrid"),
   sourceChips: document.getElementById("sourceChips"),
   availabilityChips: document.getElementById("availabilityChips"),
+  selectionSentinel: document.getElementById("selectionSentinel"),
+  selectionSection: document.getElementById("selectionSection"),
   selectionSummary: document.getElementById("selectionSummary"),
   pinnedGrid: document.getElementById("pinnedGrid"),
   comboGrid: document.getElementById("comboGrid"),
   comboSummary: document.getElementById("comboSummary"),
   itemGrid: document.getElementById("itemGrid"),
+  dealGrid: document.getElementById("dealGrid"),
+  dealSummary: document.getElementById("dealSummary"),
   searchInput: document.getElementById("searchInput"),
   itemResults: document.getElementById("itemResults"),
 };
@@ -183,8 +188,24 @@ function isBreakfastItem(item) {
   );
 }
 
+function isOfficialDealItem(item) {
+  const name = (item.name || "").toLowerCase();
+  const categoryCode = (item.categoryCode || "").toLowerCase();
+  const categoryLabel = (item.categoryLabel || "").toLowerCase();
+
+  return (
+    item.source === "Taco Bell" &&
+    (categoryCode === "deals-and-combos" ||
+      categoryCode === "party-packs" ||
+      categoryLabel.includes("deals") ||
+      categoryLabel.includes("combos") ||
+      categoryLabel.includes("party") ||
+      /\b(combo|box|pack|cravings|luxe)\b/.test(name))
+  );
+}
+
 function normalizeFood(item, fallbackSource) {
-  return {
+  const normalized = {
     ...item,
     source: item.source || fallbackSource,
     categoryLabel: item.categoryLabel || fallbackSource,
@@ -196,6 +217,9 @@ function normalizeFood(item, fallbackSource) {
     sodium: maybeNumber(item.sodium),
     isBreakfast: isBreakfastItem(item),
   };
+
+  normalized.isOfficialDeal = isOfficialDealItem(normalized);
+  return normalized;
 }
 
 const tacoBellFoods = (window.TACO_BELL_ITEMS || []).map((item) =>
@@ -203,6 +227,7 @@ const tacoBellFoods = (window.TACO_BELL_ITEMS || []).map((item) =>
 );
 const allFoods = [...STAPLES.map((item) => normalizeFood(item, "Staples")), ...tacoBellFoods];
 const trackedFoods = allFoods.filter((item) => item.protein != null && item.fiber != null);
+const officialDeals = allFoods.filter((item) => item.isOfficialDeal);
 const foodsById = new Map(allFoods.map((item) => [item.id, item]));
 
 const trackedByProteinEfficiency = [...trackedFoods].sort(
@@ -238,6 +263,23 @@ function formatMacro(value, suffix) {
 function sourceLine(items) {
   const uniqueSources = [...new Set(items.map((item) => item.source))];
   return uniqueSources.join(" + ");
+}
+
+function formatCost(value) {
+  return value == null ? "price varies" : `$${value.toFixed(2)}`;
+}
+
+function totalCostFromEntries(entries) {
+  return entries.reduce((sum, entry) => {
+    const price = entry.item.price == null ? 0 : entry.item.price;
+    return sum + price * entry.quantity;
+  }, 0);
+}
+
+function formatMealCost(entries) {
+  const total = totalCostFromEntries(entries);
+  const hasUnknownCost = entries.some((entry) => entry.item.price == null);
+  return hasUnknownCost ? `known $${total.toFixed(2)}+` : `$${total.toFixed(2)} total`;
 }
 
 function totalQuantity(counts) {
@@ -439,6 +481,8 @@ function materializeCombo(comboState) {
     itemCount: comboState.itemCount,
     deltaCalories: comboState.calories - state.calories,
     sourceMix: sourceLine(entries.map((entry) => entry.item)),
+    cost: totalCostFromEntries(entries),
+    costLabel: formatMealCost(entries),
     score: comboState.score,
   };
 }
@@ -526,6 +570,23 @@ function singleItems(foods) {
     .filter((item) => item.calories <= maxCalories)
     .sort((a, b) => itemLibraryScore(a) - itemLibraryScore(b))
     .slice(0, 18);
+}
+
+function filteredOfficialDeals(foods) {
+  const foodIds = new Set(foods.map((item) => item.id));
+
+  return officialDeals
+    .filter((item) => foodIds.has(item.id))
+    .sort((a, b) => {
+      const aTracked = a.protein != null && a.fiber != null && a.calories > 0 ? 0 : 1;
+      const bTracked = b.protein != null && b.fiber != null && b.calories > 0 ? 0 : 1;
+      return (
+        aTracked - bTracked ||
+        (a.price ?? 999) - (b.price ?? 999) ||
+        a.name.localeCompare(b.name)
+      );
+    })
+    .slice(0, DEALS_PER_VIEW);
 }
 
 function syncSliderCards() {
@@ -654,6 +715,7 @@ function renderPinnedSection() {
           <span class="macro-pill">${formatMacro(totals.protein, "g protein")}</span>
           <span class="macro-pill">${formatMacro(totals.fiber, "g fiber")}</span>
           <span class="delta-pill ${overUnderClass(delta)}">${overUnderLabel(delta)}</span>
+          <span class="macro-pill">${formatMealCost(entries)}</span>
         </div>
         <p class="selection-caption">${hiddenBreakfastNote}</p>
       </div>
@@ -693,7 +755,7 @@ function renderPinnedSection() {
               <div class="card-footer">
                 <span class="mini-chip">${formatMacro(entry.item.protein * entry.quantity, "g protein")}</span>
                 <span class="mini-chip">${formatMacro(entry.item.fiber * entry.quantity, "g fiber")}</span>
-                ${entry.item.price != null ? `<span class="mini-chip">$${entry.item.price.toFixed(2)}</span>` : ""}
+                ${entry.item.price != null ? `<span class="mini-chip">$${(entry.item.price * entry.quantity).toFixed(2)}</span>` : ""}
               </div>
             </article>
           `
@@ -748,6 +810,7 @@ function comboCard(combo, index) {
         <span class="macro-pill">Meal total: ${combo.calories} cal</span>
         <span class="macro-pill">${formatMacro(combo.protein, "g protein")}</span>
         <span class="macro-pill">${formatMacro(combo.fiber, "g fiber")}</span>
+        <span class="macro-pill">${combo.costLabel}</span>
       </div>
       <div class="source-line">${combo.sourceMix}</div>
     </article>
@@ -781,6 +844,37 @@ function itemCard(item) {
   `;
 }
 
+function dealCard(item, index) {
+  const isTracked = item.protein != null && item.fiber != null && item.calories > 0;
+  const macroNote = isTracked
+    ? "Full macros available, so this deal can be pinned directly."
+    : "Official price is available, but Taco Bell does not expose complete protein/fiber for this deal yet.";
+
+  return `
+    <article class="deal-card ${index === 0 ? "featured" : ""}">
+      <div class="item-topline">
+        <div>
+          <h3 class="deal-title">${item.name}</h3>
+          <div class="item-meta">
+            <span>${item.categoryLabel}</span>
+            ${item.serving ? `<span>${item.serving}</span>` : ""}
+          </div>
+        </div>
+        <span class="delta-pill good">${formatCost(item.price)}</span>
+      </div>
+      <div class="card-footer">
+        <span class="mini-chip">${item.calories || "varies"} cal</span>
+        <span class="mini-chip">${formatMacro(item.protein, "g protein")}</span>
+        <span class="mini-chip">${formatMacro(item.fiber, "g fiber")}</span>
+      </div>
+      <p class="deal-note">${macroNote}</p>
+      <div class="selection-actions">
+        <button class="pin-button" type="button" data-add-item-id="${item.id}" data-add-amount="1" ${isTracked ? "" : 'disabled aria-disabled="true"'}>${isTracked ? "Pin Deal" : "Macro data needed"}</button>
+      </div>
+    </article>
+  `;
+}
+
 function renderResults() {
   const foods = filteredFoods();
   const trackableFoods = trackedFoodsOnly(foods);
@@ -789,6 +883,10 @@ function renderResults() {
   latestAllCombos = buildCombos(foods);
   latestVisibleCombos = latestAllCombos.slice(state.rollOffset, state.rollOffset + COMBOS_PER_VIEW);
   const items = singleItems(foods);
+  const deals = filteredOfficialDeals(foods);
+  const trackedDeals = deals.filter(
+    (item) => item.protein != null && item.fiber != null && item.calories > 0
+  ).length;
   const tolerance = caloriesTolerance();
   const breakfastNote = state.includeBreakfast ? "Breakfast is included." : "Breakfast is excluded by default.";
 
@@ -803,6 +901,11 @@ function renderResults() {
   els.itemGrid.innerHTML = items.length
     ? items.map(itemCard).join("")
     : `<div class="empty-state"><p>No fully tracked single items fit that search and source mix.</p></div>`;
+
+  els.dealSummary.textContent = `Showing official Taco Bell deal prices from the menu feed. ${trackedDeals} of ${deals.length} visible deals include enough macro data to pin directly.`;
+  els.dealGrid.innerHTML = deals.length
+    ? deals.map(dealCard).join("")
+    : `<div class="empty-state"><p>No Taco Bell boxes or combos match the current filters.</p></div>`;
 }
 
 function renderDynamicSections() {
@@ -891,6 +994,15 @@ function rollAgain() {
   renderDynamicSections();
 }
 
+function updateStickySelectionMode() {
+  if (!els.selectionSection || !els.selectionSentinel) {
+    return;
+  }
+
+  const sentinelTop = els.selectionSentinel.getBoundingClientRect().top;
+  els.selectionSection.classList.toggle("is-compact", window.scrollY > 0 && sentinelTop <= 12);
+}
+
 function scrollToItemResults() {
   if (!els.itemResults) {
     return;
@@ -906,6 +1018,7 @@ function renderStatic() {
   renderSourceChips();
   renderAvailabilityChips();
   renderDynamicSections();
+  updateStickySelectionMode();
 }
 
 els.sliderGrid.addEventListener("input", (event) => {
@@ -1039,6 +1152,17 @@ els.itemGrid.addEventListener("click", (event) => {
   }
   addPinnedItem(addItemId, number(event.target.dataset.addAmount || 1));
 });
+
+els.dealGrid.addEventListener("click", (event) => {
+  const addItemId = event.target.dataset.addItemId;
+  if (!addItemId) {
+    return;
+  }
+  addPinnedItem(addItemId, number(event.target.dataset.addAmount || 1));
+});
+
+window.addEventListener("scroll", updateStickySelectionMode, { passive: true });
+window.addEventListener("resize", updateStickySelectionMode);
 
 els.searchInput.addEventListener("input", (event) => {
   state.search = event.target.value;
